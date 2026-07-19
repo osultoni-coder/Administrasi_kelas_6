@@ -1,0 +1,1304 @@
+<!DOCTYPE html>
+<html lang="id" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistem Administrasi Guru</title>
+    <!-- Tailwind & Fonts -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <!-- SheetJS (Excel Library) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Inter', 'sans-serif'], cyber: ['Orbitron', 'sans-serif'] },
+                    colors: { cyber: { blue: '#00f3ff', green: '#00ff66', purple: '#b026ff', gold: '#ffd700', dark: '#0a0a0f', panel: 'rgba(15, 15, 25, 0.85)' } }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { background-color: #050505; background-image: radial-gradient(circle at 50% 0%, #1a1a2e 0%, #050505 70%); min-height: 100vh; color: #e2e8f0; overflow-x: hidden; }
+        .glass-panel { background: var(--cyber-panel); backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.05); box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5); border-radius: 1rem; }
+        .glass-panel:hover { border-color: var(--theme-color, #00f3ff); box-shadow: 0 0 15px var(--theme-color, rgba(0, 243, 255, 0.2)); transition: all 0.3s ease; }
+        .neon-text { text-shadow: 0 0 10px var(--theme-color, #00f3ff); }
+        .morph-enter { opacity: 0; transform: scale(0.98) translateY(10px); }
+        .morph-enter-active { opacity: 1; transform: scale(1) translateY(0); transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #050505; }
+        ::-webkit-scrollbar-thumb { background: #333; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--theme-color, #00f3ff); }
+        .abs-H { background: rgba(0, 255, 102, 0.2); color: #00ff66; border: 1px solid #00ff66; }
+        .abs-S { background: rgba(0, 243, 255, 0.2); color: #00f3ff; border: 1px solid #00f3ff; }
+        .abs-I { background: rgba(255, 215, 0, 0.2); color: #ffd700; border: 1px solid #ffd700; }
+        .abs-A { background: rgba(255, 50, 50, 0.2); color: #ff3232; border: 1px solid #ff3232; }
+        .menu-item.active { background: linear-gradient(90deg, rgba(255,255,255,0.1) 0%, transparent 100%); border-left: 3px solid var(--theme-color); color: var(--theme-color); }
+        @keyframes pulse-gold { 0% { box-shadow: 0 0 0 0 rgba(255, 215, 0, 0.4); } 70% { box-shadow: 0 0 0 20px rgba(255, 215, 0, 0); } 100% { box-shadow: 0 0 0 0 rgba(255, 215, 0, 0); } }
+        .btn-login { animation: pulse-gold 2s infinite; border: 2px solid #ffd700; }
+        input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(1); cursor: pointer; }
+        .sidebar-expanded { transform: translateX(0); width: 16rem; }
+        .sidebar-collapsed { transform: translateX(-100%); width: 0; padding: 0; opacity: 0; margin: 0; border: none; overflow: hidden; }
+        input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+        
+        /* Print Styles Fixed (Lebih adaptif untuk multi-halaman) */
+        @media screen {
+            #printSection { display: none !important; }
+        }
+        @media print {
+            body { background: white !important; color: black !important; }
+            #mainApp, #loginScreen, #toast, #customModal, #sidebarOverlay { display: none !important; }
+            #printSection { display: block !important; visibility: visible !important; width: 100%; padding: 0; font-family: 'Times New Roman', Times, serif; }
+            table { width: 100%; border-collapse: collapse; margin-top: 15px; page-break-inside: auto; }
+            tr { page-break-inside: avoid; page-break-after: auto; }
+            thead { display: table-header-group; } /* Memastikan header tabel terulang di tiap halaman */
+            tfoot { display: table-footer-group; }
+            th, td { border: 1px solid black; padding: 6px; text-align: left; font-size: 11px; color: black; }
+            th { background-color: #f0f0f0 !important; font-weight: bold; text-align: center; }
+            .kop-surat { border-bottom: 3px solid black; padding-bottom: 5px; margin-bottom: 15px; text-align: center; }
+        }
+    </style>
+</head>
+<body class="antialiased font-sans selection:bg-cyber-blue selection:text-black flex flex-col h-screen overflow-hidden">
+
+    <!-- Container Khusus Cetak (Hanya Muncul Saat Print) -->
+    <div id="printSection"></div>
+
+    <!-- TOAST & MODAL NOTIFICATION -->
+    <div id="toast" class="fixed top-5 left-1/2 transform -translate-x-1/2 z-[100] hidden glass-panel px-6 py-3 border-b-2 flex items-center gap-3 transition-all duration-300">
+        <i id="toastIcon" class="ph text-2xl"></i><span id="toastMsg" class="text-white font-medium"></span>
+    </div>
+    <div id="customModal" class="fixed inset-0 z-[90] hidden bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="glass-panel p-6 w-full max-w-lg transform transition-all duration-300 scale-95 opacity-0" id="modalContent">
+            <h3 id="modalTitle" class="text-xl font-cyber mb-4 text-cyber-blue">Konfirmasi</h3>
+            <div id="modalBody" class="text-gray-300 mb-6 text-sm max-h-[60vh] overflow-y-auto custom-scroll"></div>
+            <div class="flex justify-end gap-3" id="modalActions">
+                <button onclick="closeModal()" class="px-4 py-2 text-sm text-gray-400 hover:text-white">Batal</button>
+                <button id="modalConfirmBtn" class="px-4 py-2 text-sm bg-cyber-blue/20 text-cyber-blue rounded border border-cyber-blue hover:bg-cyber-blue hover:text-black transition">Konfirmasi</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- LOGIN SCREEN -->
+    <div id="loginScreen" class="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black transition-opacity duration-700">
+        <div class="absolute inset-0 z-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-[#1a1500] via-black to-black opacity-80"></div>
+        <div class="z-10 text-center flex flex-col items-center">
+            <h1 class="font-cyber text-3xl md:text-5xl text-transparent bg-clip-text bg-gradient-to-r from-cyber-gold to-yellow-200 mb-10 tracking-widest uppercase text-center leading-tight">SDN 175 Gresik<br><span class="text-lg md:text-2xl text-cyber-blue">Administrasi Guru</span></h1>
+            <!-- Tombol Login dengan Logo Terintegrasi Penuh (Transparent PNG Support) -->
+            <button onclick="login()" class="btn-login relative w-36 h-36 md:w-40 md:h-40 rounded-full glass-panel flex items-center justify-center group hover:scale-105 transition-transform duration-300 overflow-hidden bg-black/50 border-2 border-cyber-gold shadow-[0_0_20px_rgba(255,215,0,0.5)]">
+                <img id="mainLoginLogo" src="https://cdn-icons-png.flaticon.com/512/8062/8062272.png" alt="Logo Sekolah" class="w-full h-full object-contain p-3 z-10 group-hover:scale-110 transition-transform drop-shadow-[0_0_8px_rgba(0,243,255,0.6)]">
+            </button>
+            <p class="mt-8 text-cyber-gold font-cyber tracking-widest text-sm opacity-80 animate-pulse">KLIK LOGO UNTUK MASUK</p>
+        </div>
+        <div class="absolute bottom-10 z-10 text-center">
+            <p class="text-gray-500 font-light text-xs md:text-sm">Aplikasi ini dikembangkan oleh :</p>
+            <p class="text-cyber-gold font-cyber tracking-wider mt-1 text-sm md:text-base font-bold" id="loginNamaGuru">Sultoni, S.Pd.</p>
+        </div>
+    </div>
+
+    <!-- MAIN APP LAYOUT -->
+    <div id="mainApp" class="hidden h-screen w-full flex overflow-hidden relative">
+        <aside id="sidebar" class="sidebar-expanded absolute md:relative glass-panel border-r border-gray-800 flex flex-col m-0 md:m-4 md:mr-2 h-full md:h-[calc(100vh-2rem)] z-40 transition-all duration-300 shrink-0">
+            <div class="p-5 border-b border-gray-800 flex justify-between items-center">
+                <div class="overflow-hidden whitespace-nowrap">
+                    <h2 class="font-cyber text-lg font-bold tracking-wider text-white">SYS_ADMIN</h2>
+                    <p class="text-xs text-gray-400 mt-1" id="sideTahunPelajaran">TP 2026/2027</p>
+                </div>
+                <button onclick="toggleSidebar()" class="md:hidden text-gray-400 hover:text-white shrink-0"><i class="ph ph-x text-xl"></i></button>
+            </div>
+            <nav class="flex-1 overflow-y-auto py-2 space-y-1 custom-scroll" id="sidebarMenu"></nav>
+            <div class="p-4 border-t border-gray-800 whitespace-nowrap">
+                <button onclick="logout()" class="flex items-center gap-3 text-gray-400 hover:text-red-400 w-full p-2 rounded transition-colors">
+                    <i class="ph ph-power text-xl"></i><span class="font-medium text-sm">Logout System</span>
+                </button>
+            </div>
+        </aside>
+
+        <div id="sidebarOverlay" onclick="toggleSidebar()" class="fixed inset-0 bg-black/50 z-30 hidden md:hidden backdrop-blur-sm"></div>
+
+        <main class="flex-1 flex flex-col m-2 md:m-4 md:ml-2 h-[calc(100vh-1rem)] md:h-[calc(100vh-2rem)] min-w-0 relative z-10">
+            <header id="topHeader" class="glass-panel h-20 mb-4 px-4 md:px-8 flex items-center justify-between border-b-2 shrink-0" style="border-bottom-color: var(--theme-color, #00f3ff);">
+                <div class="flex items-center gap-4">
+                    <button onclick="toggleSidebar()" class="p-2 rounded bg-gray-800/50 text-white hover:text-cyber-blue transition"><i class="ph ph-list text-2xl"></i></button>
+                    <div id="headerIcon" class="hidden md:flex p-3 rounded-xl bg-gray-800/50"></div>
+                    <div><h1 id="headerTitle" class="font-cyber text-lg md:text-2xl font-bold uppercase tracking-wide" style="color: var(--theme-color, #00f3ff);">Dashboard</h1></div>
+                </div>
+                <div class="flex items-center gap-4">
+                    <div class="text-right hidden sm:block">
+                        <p class="text-sm font-bold text-white whitespace-nowrap" id="headerNamaGuru">Sultoni, S.Pd.</p>
+                        <p class="text-xs text-gray-400">Admin</p>
+                    </div>
+                    <img id="headerProfilePic" src="https://api.dicebear.com/7.x/avataaars/svg?seed=Sultoni&backgroundColor=0a0a0f" alt="Profile" class="w-10 h-10 md:w-12 md:h-12 rounded-full glass-panel border border-gray-700 object-cover">
+                </div>
+            </header>
+            <div id="contentContainer" class="flex-1 glass-panel overflow-y-auto p-4 md:p-6 relative"></div>
+        </main>
+    </div>
+
+    <!-- ==================== TEMPLATES ==================== -->
+
+    <!-- 1. Dashboard -->
+    <template id="tpl-dashboard">
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+            <div class="glass-panel p-4 md:p-6 flex flex-col"><span class="text-gray-400 text-xs md:text-sm">Total Siswa</span><span id="dash_jmlSiswa" class="font-cyber text-2xl md:text-4xl font-bold mt-2 neon-text text-cyber-blue">0</span></div>
+            <div class="glass-panel p-4 md:p-6 flex flex-col"><span class="text-gray-400 text-xs md:text-sm">Status Sinkronisasi</span><span class="font-cyber text-xl md:text-2xl font-bold mt-2 neon-text text-cyber-green mt-3">TERSIPAN (AUTO)</span></div>
+            <div class="glass-panel p-4 md:p-6 flex flex-col"><span class="text-gray-400 text-xs md:text-sm">Total Pelanggaran</span><span id="dash_jmlPelanggaran" class="font-cyber text-2xl md:text-4xl font-bold mt-2 text-yellow-400" style="text-shadow: 0 0 10px #ffd700;">0</span></div>
+            <div class="glass-panel p-4 md:p-6 flex flex-col"><span class="text-gray-400 text-xs md:text-sm">Jurnal Terisi</span><span id="dash_jmlJurnal" class="font-cyber text-2xl md:text-4xl font-bold mt-2 text-purple-400" style="text-shadow: 0 0 10px #b026ff;">0</span></div>
+        </div>
+        <div class="glass-panel p-6 h-64 flex items-center justify-center border-dashed border-2 border-gray-700 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]">
+            <p class="text-gray-500 font-cyber text-lg tracking-widest animate-pulse">[ SISTEM TERINTEGRASI - AKTIF ]</p>
+        </div>
+    </template>
+
+    <!-- 2. Biodata Guru -->
+    <template id="tpl-biodata">
+        <div class="max-w-4xl mx-auto glass-panel p-6 md:p-8">
+            <h3 class="font-cyber text-xl mb-6 text-cyber-green border-b border-gray-700 pb-2">Profil & Biodata Pendidik</h3>
+            <form onsubmit="simpanBiodata(event)" class="flex flex-col md:flex-row gap-8">
+                <div class="w-full md:w-1/3 flex flex-col items-center">
+                    <div class="w-40 h-48 border-2 border-dashed border-gray-600 rounded-xl mb-4 flex items-center justify-center relative overflow-hidden group cursor-pointer" onclick="document.getElementById('fotoGuruUpload').click()">
+                        <img id="formFotoGuru" src="https://api.dicebear.com/7.x/avataaars/svg?seed=Sultoni&backgroundColor=0a0a0f" class="absolute inset-0 w-full h-full object-cover z-0">
+                        <div class="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center transition-opacity z-10 text-cyber-green">
+                            <i class="ph ph-camera text-3xl"></i>
+                            <span class="text-xs mt-1">Ubah Foto</span>
+                        </div>
+                    </div>
+                    <input type="file" id="fotoGuruUpload" accept="image/*" class="hidden" onchange="window.handleFotoUpload(this)">
+                    <p class="text-xs text-gray-500 text-center">Format: JPG, PNG.</p>
+                </div>
+                <div class="w-full md:w-2/3 space-y-4">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div><label class="block text-xs text-gray-400 mb-1">Nama Lengkap & Gelar</label><input type="text" id="bioNama" class="w-full bg-gray-900 border border-gray-700 p-2 rounded text-white outline-none text-sm focus:border-cyber-green"></div>
+                        <div><label class="block text-xs text-gray-400 mb-1">NIP / NUPTK</label><input type="text" id="bioNIP" class="w-full bg-gray-900 border border-gray-700 p-2 rounded text-white outline-none text-sm focus:border-cyber-green"></div>
+                    </div>
+                    <div><label class="block text-xs text-gray-400 mb-1">Tempat, Tanggal Lahir</label><input type="text" id="bioTTL" class="w-full bg-gray-900 border border-gray-700 p-2 rounded text-white outline-none text-sm focus:border-cyber-green"></div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs text-gray-400 mb-1">Mengajar Kelas</label>
+                            <select id="bioKelas" class="w-full bg-gray-900 border border-gray-700 p-2 rounded text-white outline-none text-sm focus:border-cyber-green">
+                                <option>Kelas 1</option><option>Kelas 2</option><option>Kelas 3</option>
+                                <option>Kelas 4</option><option>Kelas 5</option><option>Kelas 6</option>
+                            </select>
+                        </div>
+                        <div><label class="block text-xs text-gray-400 mb-1">Tahun Pelajaran</label><input type="text" id="bioTahun" class="w-full bg-gray-900 border border-gray-700 p-2 rounded text-white outline-none text-sm focus:border-cyber-green"></div>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div><label class="block text-xs text-gray-400 mb-1">No. Kontak (WA)</label><input type="tel" id="bioKontak" class="w-full bg-gray-900 border border-gray-700 p-2 rounded text-white outline-none text-sm focus:border-cyber-green"></div>
+                        <div><label class="block text-xs text-gray-400 mb-1">Alamat Email</label><input type="email" id="bioEmail" class="w-full bg-gray-900 border border-gray-700 p-2 rounded text-white outline-none text-sm focus:border-cyber-green"></div>
+                    </div>
+                    <div><label class="block text-xs text-gray-400 mb-1">Alamat Rumah</label><textarea id="bioAlamat" rows="2" class="w-full bg-gray-900 border border-gray-700 p-2 rounded text-white outline-none text-sm focus:border-cyber-green"></textarea></div>
+                    <div class="pt-4 flex justify-end"><button type="submit" class="bg-cyber-green text-black font-bold px-8 py-2 rounded hover:shadow-[0_0_15px_#00ff66] transition-all">Simpan Profil</button></div>
+                </div>
+            </form>
+        </div>
+    </template>
+
+    <!-- 3. Data Siswa -->
+    <template id="tpl-siswa">
+        <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+            <button onclick="actionSiswa('tambah')" class="w-full md:w-auto bg-cyber-green/20 text-cyber-green border border-cyber-green px-4 py-2 rounded hover:bg-cyber-green hover:text-black transition-colors flex items-center justify-center gap-2 text-sm"><i class="ph ph-plus"></i> Tambah Data</button>
+            <div class="flex w-full md:w-auto gap-2">
+                <button onclick="actionSiswa('ekspor')" class="flex-1 md:flex-none glass-panel px-4 py-2 text-sm text-gray-300 hover:text-white flex items-center justify-center gap-2"><i class="ph ph-file-xls"></i> Unduh MS Excel</button>
+                <button onclick="document.getElementById('importSiswaFile').click()" class="flex-1 md:flex-none glass-panel px-4 py-2 text-sm text-gray-300 hover:text-white flex items-center justify-center gap-2"><i class="ph ph-download-simple"></i> Impor Excel</button>
+                <input type="file" id="importSiswaFile" accept=".xlsx, .xls" class="hidden" onchange="imporSiswaExcel(event)">
+            </div>
+        </div>
+        <div class="glass-panel overflow-x-auto rounded-xl border border-gray-800">
+            <table class="w-full text-left border-collapse whitespace-nowrap">
+                <thead>
+                    <tr class="bg-gray-900 text-gray-400 text-xs md:text-sm border-b border-gray-800">
+                        <th class="p-3 font-medium text-center">No</th>
+                        <th class="p-3 font-medium cursor-pointer hover:text-white" onclick="sortSiswa()">Nama Siswa <i class="ph ph-sort-ascending"></i></th>
+                        <th class="p-3 font-medium">NIS</th>
+                        <th class="p-3 font-medium">NISN</th>
+                        <th class="p-3 font-medium text-center">L/P</th>
+                        <th class="p-3 font-medium">Tempat, Tgl Lahir</th>
+                        <th class="p-3 font-medium">Nama Ayah</th>
+                        <th class="p-3 font-medium">Nama Ibu</th>
+                        <th class="p-3 font-medium text-center">Aksi</th>
+                    </tr>
+                </thead>
+                <tbody id="siswaTbody" class="text-sm"></tbody>
+            </table>
+        </div>
+    </template>
+
+    <!-- 4. Absensi -->
+    <template id="tpl-absensi">
+        <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+            <div class="flex flex-col md:flex-row gap-2 w-full md:w-auto">
+                <select id="selectBulanAbsen" onchange="initAbsensi()" class="glass-panel bg-transparent border border-gray-700 p-2 rounded text-white outline-none text-sm w-full md:w-48">
+                    <optgroup label="Tahun 2026"><option value="2026-07">Juli 2026</option><option value="2026-08">Agustus 2026</option><option value="2026-09">September 2026</option><option value="2026-10">Oktober 2026</option><option value="2026-11">November 2026</option><option value="2026-12">Desember 2026</option></optgroup>
+                    <optgroup label="Tahun 2027"><option value="2027-01">Januari 2027</option><option value="2027-02">Februari 2027</option><option value="2027-03">Maret 2027</option><option value="2027-04">April 2027</option><option value="2027-05">Mei 2027</option><option value="2027-06">Juni 2027</option></optgroup>
+                </select>
+                <div class="glass-panel px-3 py-2 text-xs text-gray-400 flex items-center border border-gray-700">Tips: Klik tanggal di tabel untuk Set Hari Libur</div>
+            </div>
+            <button onclick="unduhExcelAbsensiKhusus()" class="w-full md:w-auto bg-cyber-gold/20 text-cyber-gold border border-cyber-gold px-4 py-2 rounded hover:bg-cyber-gold hover:text-black transition-colors flex items-center justify-center gap-2 text-sm"><i class="ph ph-file-xls"></i> Unduh MS Excel + Rekap</button>
+        </div>
+        <div class="glass-panel overflow-x-auto rounded-xl border border-gray-800 relative" style="max-height: 65vh;">
+            <table id="tabelAbsen" class="w-full text-center border-collapse text-xs md:text-sm">
+                <thead class="sticky top-0 z-20 shadow-md bg-gray-900" id="absenThead"></thead>
+                <tbody id="absenTbody" class="cursor-pointer select-none"></tbody>
+            </table>
+        </div>
+    </template>
+
+    <!-- 5. Daftar Nilai -->
+    <template id="tpl-nilai">
+         <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-6 gap-4">
+            <select id="selectMapelNilai" onchange="renderNilaiTable()" class="glass-panel bg-transparent border border-gray-700 p-2 rounded text-white outline-none w-full md:w-64 text-sm font-cyber"></select>
+            <div class="flex flex-wrap w-full lg:w-auto gap-2">
+                <button onclick="settingPersentase()" class="glass-panel px-3 py-2 text-xs text-gray-300 hover:text-white flex items-center gap-2"><i class="ph ph-faders"></i> Set Persentase</button>
+                <div class="glass-panel flex items-center overflow-hidden rounded text-xs border border-gray-700"><span class="px-2 text-gray-400">Tugas:</span><button onclick="modNilaiCol('tugas',-1)" class="px-2 hover:bg-white/10">-</button><span id="cTugas" class="px-2 text-cyber-blue font-bold">2</span><button onclick="modNilaiCol('tugas',1)" class="px-2 hover:bg-white/10">+</button></div>
+                <div class="glass-panel flex items-center overflow-hidden rounded text-xs border border-gray-700"><span class="px-2 text-gray-400">Ulang:</span><button onclick="modNilaiCol('ulangan',-1)" class="px-2 hover:bg-white/10">-</button><span id="cUlangan" class="px-2 text-cyber-purple font-bold">2</span><button onclick="modNilaiCol('ulangan',1)" class="px-2 hover:bg-white/10">+</button></div>
+                <button onclick="unduhExcelNilai()" class="bg-cyber-blue/20 text-cyber-blue border border-cyber-blue px-3 py-2 rounded text-xs hover:bg-cyber-blue hover:text-black transition-colors flex items-center gap-2 ml-auto"><i class="ph ph-file-xls"></i> Unduh MS Excel</button>
+            </div>
+        </div>
+        <div class="glass-panel overflow-x-auto rounded-xl border border-gray-800 relative" style="max-height: 65vh;">
+            <table id="tabelNilai" class="w-full text-center border-collapse text-xs md:text-sm">
+                <thead class="sticky top-0 z-20 bg-gray-900" id="nilaiThead"></thead>
+                <tbody id="nilaiTbody"></tbody>
+            </table>
+        </div>
+    </template>
+
+    <!-- 6. Jadwal Pelajaran -->
+    <template id="tpl-jadwal">
+        <div class="flex flex-wrap justify-between items-center mb-6 gap-4">
+             <h3 class="font-cyber text-lg text-cyber-purple">Jadwal Mingguan</h3>
+             <div class="flex gap-2">
+                 <button onclick="kelolaMapel()" class="glass-panel px-3 py-2 text-xs hover:text-white flex items-center gap-1 border-cyber-purple text-cyber-purple"><i class="ph ph-list-plus"></i> Kelola Mapel</button>
+                 <button onclick="modJadwalRow(1)" class="glass-panel px-3 py-2 text-xs hover:text-cyber-green flex items-center gap-1"><i class="ph ph-plus"></i> Baris Hari</button>
+                 <button onclick="modJadwalRow(-1)" class="glass-panel px-3 py-2 text-xs hover:text-red-400 flex items-center gap-1"><i class="ph ph-minus"></i> Baris Hari</button>
+             </div>
+        </div>
+        <div class="glass-panel overflow-x-auto rounded-xl border border-gray-800">
+            <table class="w-full text-center border-collapse text-sm whitespace-nowrap">
+                <thead><tr class="bg-gray-900 text-gray-400 text-xs border-b border-gray-800"><th class="p-3 border-r border-gray-800 w-16">Jam Ke-</th><th class="p-3 border-r border-gray-800 w-1/6">Senin</th><th class="p-3 border-r border-gray-800 w-1/6">Selasa</th><th class="p-3 border-r border-gray-800 w-1/6">Rabu</th><th class="p-3 border-r border-gray-800 w-1/6">Kamis</th><th class="p-3 border-r border-gray-800 w-1/6">Jumat</th><th class="p-3 w-1/6">Sabtu</th></tr></thead>
+                <tbody id="jadwalTbody"></tbody>
+            </table>
+        </div>
+    </template>
+
+    <!-- 7. Daftar Piket -->
+    <template id="tpl-piket">
+        <div class="flex flex-wrap justify-between items-center mb-6 gap-4">
+             <h3 class="font-cyber text-lg text-cyber-gold">Daftar Piket Kelas</h3>
+             <div class="flex gap-2">
+                 <button onclick="modPiketRow(1)" class="glass-panel px-3 py-2 text-xs hover:text-cyber-green flex items-center gap-1"><i class="ph ph-plus"></i> Tambah Baris</button>
+                 <button onclick="modPiketRow(-1)" class="glass-panel px-3 py-2 text-xs hover:text-red-400 flex items-center gap-1"><i class="ph ph-minus"></i> Kurangi Baris</button>
+             </div>
+        </div>
+        <div class="glass-panel overflow-x-auto rounded-xl border border-gray-800">
+            <table class="w-full text-center border-collapse text-sm whitespace-nowrap">
+                <thead><tr class="bg-gray-900 text-gray-400 text-xs border-b border-gray-800"><th class="p-3 border-r border-gray-800 w-16">Petugas</th><th class="p-3 border-r border-gray-800 w-1/6">Senin</th><th class="p-3 border-r border-gray-800 w-1/6">Selasa</th><th class="p-3 border-r border-gray-800 w-1/6">Rabu</th><th class="p-3 border-r border-gray-800 w-1/6">Kamis</th><th class="p-3 border-r border-gray-800 w-1/6">Jumat</th><th class="p-3 w-1/6">Sabtu</th></tr></thead>
+                <tbody id="piketTbody"></tbody>
+            </table>
+        </div>
+    </template>
+
+    <!-- 8. Data Pelanggaran -->
+    <template id="tpl-pelanggaran">
+        <div class="flex justify-between mb-4">
+            <button onclick="modalPelanggaran()" class="bg-red-500/20 text-red-400 border border-red-500 px-3 py-2 rounded text-xs hover:bg-red-500 hover:text-white transition-colors flex items-center gap-2"><i class="ph ph-plus"></i> Catat Pelanggaran</button>
+        </div>
+        <div class="glass-panel overflow-x-auto rounded-xl border border-gray-800">
+            <table class="w-full text-left border-collapse text-sm whitespace-nowrap">
+                <thead><tr class="bg-gray-900 text-gray-400 text-xs border-b border-gray-800"><th class="p-3 w-12 text-center">No</th><th class="p-3 w-32">Tanggal</th><th class="p-3 w-48">Nama Siswa</th><th class="p-3">Peristiwa</th><th class="p-3">Tindak Lanjut</th><th class="p-3 w-24 text-center">Aksi</th></tr></thead>
+                <tbody id="pelanggaranTbody"></tbody>
+            </table>
+        </div>
+    </template>
+
+    <!-- 9. Daftar Inventaris -->
+    <template id="tpl-inventaris">
+        <div class="flex justify-between mb-4">
+            <button onclick="modalInventaris()" class="bg-blue-500/20 text-blue-400 border border-blue-500 px-3 py-2 rounded text-xs hover:bg-blue-500 hover:text-white transition-colors flex items-center gap-2"><i class="ph ph-plus"></i> Tambah Barang</button>
+        </div>
+        <div class="glass-panel overflow-x-auto rounded-xl border border-gray-800">
+            <table class="w-full text-left border-collapse text-sm whitespace-nowrap">
+                <thead>
+                    <tr class="bg-gray-900 text-gray-400 text-xs border-b border-gray-800"><th class="p-3 w-12 text-center" rowspan="2">No</th><th class="p-3" rowspan="2">Nama Barang</th><th class="p-3 w-24 text-center border-l border-gray-800" rowspan="2">Jml Total</th><th class="p-3 text-center border-b border-l border-gray-800" colspan="3">Kondisi (Input Angka)</th><th class="p-3 w-24 text-center border-l border-gray-800" rowspan="2">Aksi</th></tr>
+                    <tr class="bg-gray-900 text-gray-400 text-xs border-b border-gray-800 text-center"><th class="p-2 border-l border-gray-800 text-cyber-green">Baik</th><th class="p-2 border-l border-gray-800 text-yellow-400">Sedang</th><th class="p-2 border-l border-gray-800 text-red-400">Rusak</th></tr>
+                </thead>
+                <tbody id="inventarisTbody"></tbody>
+            </table>
+        </div>
+    </template>
+
+    <!-- 10. Jurnal Mengajar -->
+    <template id="tpl-jurnal">
+        <div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
+            <div class="xl:col-span-2 glass-panel p-6 flex flex-col gap-4">
+                <div class="border-b border-gray-700 pb-2 flex justify-between items-center">
+                    <h3 class="font-cyber text-lg text-cyber-blue">Formulir Jurnal Digital</h3>
+                    <div class="flex gap-2">
+                        <button type="button" onclick="document.getElementById('importTPFile').click()" class="text-xs bg-gray-800 hover:bg-gray-700 px-2 py-1 rounded text-gray-300 border border-gray-600 transition flex gap-1"><i class="ph ph-download-simple"></i> Impor TP</button>
+                        <input type="file" id="importTPFile" accept=".xlsx, .xls" class="hidden" onchange="window.imporTPExcel(event)">
+                        <button type="button" onclick="eksporTPExcel()" class="text-xs bg-gray-800 hover:bg-gray-700 px-2 py-1 rounded text-gray-300 border border-gray-600 transition flex gap-1"><i class="ph ph-upload-simple"></i> Ekspor TP</button>
+                    </div>
+                </div>
+                <form id="formJurnal" class="space-y-4" onsubmit="simpanJurnal(event)">
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div class="lg:col-span-2"><label class="block text-xs text-gray-400 mb-1">Tanggal</label><input type="date" id="jTgl" required class="w-full glass-panel bg-transparent border border-gray-700 p-2 rounded text-white outline-none focus:border-cyber-blue text-sm"></div>
+                        <div><label class="block text-xs text-gray-400 mb-1">Jam Ke- (Mulai)</label><input type="number" id="jJamMulai" min="1" required class="w-full glass-panel bg-transparent border border-gray-700 p-2 rounded text-white outline-none focus:border-cyber-blue text-sm" placeholder="1"></div>
+                        <div><label class="block text-xs text-gray-400 mb-1">Sampai Jam Ke-</label><input type="number" id="jJamSelesai" min="1" required class="w-full glass-panel bg-transparent border border-gray-700 p-2 rounded text-white outline-none focus:border-cyber-blue text-sm" placeholder="2"></div>
+                    </div>
+                    <div><label class="block text-xs text-gray-400 mb-1">Mata Pelajaran</label><select id="jMapel" onchange="filterDatalistTP()" class="w-full glass-panel bg-transparent border border-gray-700 p-2 rounded text-white outline-none focus:border-cyber-blue text-sm"></select></div>
+                    <div>
+                        <label class="block text-xs text-gray-400 mb-1">Tujuan Pembelajaran (TP) - Ketik atau Pilih</label>
+                        <input list="listTPOptions" id="jTP" required class="w-full glass-panel bg-transparent border border-gray-700 p-2 rounded text-white outline-none focus:border-cyber-blue text-sm" placeholder="Pilih/Tuliskan tujuan pembelajaran...">
+                        <datalist id="listTPOptions"></datalist>
+                    </div>
+                    <div><label class="block text-xs text-gray-400 mb-1">Uraian Materi</label><textarea id="jMateri" rows="2" required class="w-full glass-panel bg-transparent border border-gray-700 p-2 rounded text-white outline-none focus:border-cyber-blue text-sm" placeholder="Tuliskan uraian materi..."></textarea></div>
+                    <div class="text-right pt-2"><button type="submit" class="bg-cyber-blue/20 text-cyber-blue border border-cyber-blue px-6 py-2 rounded hover:bg-cyber-blue hover:text-black transition-colors w-full md:w-auto font-bold tracking-wide">Simpan Jurnal</button></div>
+                </form>
+            </div>
+            
+            <div class="xl:col-span-1 space-y-4">
+                 <div class="glass-panel p-6 border-t-4 border-cyber-gold h-full flex flex-col">
+                    <h3 class="font-cyber text-sm mb-4 border-b border-gray-700 pb-2 text-cyber-gold">Cetak PDF Profesional</h3>
+                    <p class="text-xs text-gray-400 mb-4">Cetak jurnal dengan format tabel rapi, lengkap dengan Kop Surat untuk dilaporkan ke Kepala Sekolah.</p>
+                    
+                    <label class="text-xs text-gray-400 mb-1 block">Opsi Cetak</label>
+                    <select id="jurnalPrintFilter" class="w-full mb-4 glass-panel bg-transparent border border-gray-700 p-2 rounded text-white outline-none text-sm">
+                        <option value="all">Semua Jurnal</option>
+                        <option value="today">Harian (Hari Ini)</option>
+                        <option value="week">Mingguan (7 Hari Terakhir)</option>
+                        <option value="month">Bulanan (Bulan Ini)</option>
+                    </select>
+
+                    <button onclick="cetakJurnal()" class="mt-auto w-full bg-cyber-gold/20 text-cyber-gold border border-cyber-gold p-3 rounded text-sm hover:bg-cyber-gold hover:text-black transition-colors flex justify-center items-center gap-2 font-bold"><i class="ph ph-printer text-lg"></i> Cetak Jurnal</button>
+                 </div>
+            </div>
+        </div>
+        
+        <!-- Table Jurnal -->
+        <div class="mt-6 glass-panel overflow-x-auto rounded-xl border border-gray-800">
+             <table class="w-full text-left border-collapse text-sm whitespace-nowrap" id="tabelJurnal">
+                <thead><tr class="bg-gray-900 text-gray-400 text-xs border-b border-gray-800"><th class="p-3 w-12 text-center">No</th><th class="p-3 w-24">Tanggal</th><th class="p-3 w-16 text-center">Jam Ke</th><th class="p-3 w-40">Mata Pelajaran</th><th class="p-3">Tujuan Pembelajaran</th><th class="p-3">Materi</th><th class="p-3 w-16 text-center hide-print">Aksi</th></tr></thead>
+                <tbody id="jurnalTbody"></tbody>
+            </table>
+        </div>
+    </template>
+
+    <!-- 11. Pengaturan Sistem -->
+    <template id="tpl-pengaturan">
+        <div class="max-w-2xl mx-auto glass-panel p-6">
+            <h3 class="font-cyber text-lg mb-6 text-gray-300 border-b border-gray-700 pb-2"><i class="ph ph-gear-six"></i> Pengaturan Sistem Utama</h3>
+            <div class="space-y-6">
+                <!-- LOGO SEKOLAH -->
+                <div class="p-4 border border-gray-700 rounded-lg bg-gray-900/30">
+                    <h4 class="font-medium text-white mb-2 text-sm">Logo Sekolah (Untuk Halaman Depan)</h4>
+                    <div class="flex flex-col md:flex-row items-start md:items-center gap-4">
+                        <img id="previewLogoSekolah" src="https://cdn-icons-png.flaticon.com/512/8062/8062272.png" class="w-24 h-24 object-contain bg-black p-2 rounded border border-gray-600">
+                        <div class="flex-1">
+                            <input type="file" id="uploadLogo" accept="image/*" class="hidden" onchange="window.handleLogoUpload(this)">
+                            <button onclick="document.getElementById('uploadLogo').click()" class="bg-gray-800 hover:bg-gray-700 border border-gray-600 text-white px-4 py-2 rounded text-xs transition-colors flex gap-2">
+                                <i class="ph ph-upload-simple"></i> Upload Gambar Logo Baru
+                            </button>
+                            <p class="text-xs text-gray-500 mt-2">Logo akan terpasang di layar utama & dokumen PDF cetak. Kami otomatis mempertahankan kualitas transparan PNG.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- KOP SURAT -->
+                <div class="p-4 border border-gray-700 rounded-lg bg-gray-900/30 mt-4">
+                    <h4 class="font-medium text-white mb-2 text-sm text-cyber-gold">Kop Surat (Untuk Cetak Jurnal/Laporan)</h4>
+                    <div class="flex flex-col items-start gap-4">
+                        <img id="previewKopSurat" src="https://via.placeholder.com/800x150.png?text=Kop+Surat+Belum+Diatur" class="w-full h-auto max-h-32 object-contain bg-white rounded border border-gray-600">
+                        <div class="w-full">
+                            <input type="file" id="uploadKop" accept="image/*" class="hidden" onchange="window.handleKopUpload(this)">
+                            <button onclick="document.getElementById('uploadKop').click()" class="bg-gray-800 hover:bg-gray-700 border border-gray-600 text-white px-4 py-2 rounded text-xs transition-colors flex gap-2">
+                                <i class="ph ph-image"></i> Upload Gambar Kop Surat
+                            </button>
+                            <p class="text-xs text-gray-500 mt-2">Gunakan gambar memanjang (horizontal). Gambar ini akan muncul di bagian paling atas saat Anda melakukan pencetakan PDF laporan.</p>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </template>
+
+
+    <!-- ==================== JAVASCRIPT ==================== -->
+    <script>
+        // --- 1. LOCAL STORAGE STATE MANAGEMENT ---
+        const DEFAULT_STATE = {
+            siswa: [
+                { nama: "Ahmad Cyberian", nis: "1001", nisn: "0081001", jk: "L", tmpt: "Gresik", tgl: "2014-01-10", ayah: "Budi", ibu: "Siti" },
+                { nama: "Budi Neon", nis: "1002", nisn: "0081002", jk: "L", tmpt: "Surabaya", tgl: "2014-02-15", ayah: "Andi", ibu: "Rina" }
+            ],
+            mapel: [ "Pendidikan Agama Islam", "Pendidikan Pancasila", "Bahasa Indonesia", "Matematika", "IPAS", "Seni Budaya", "PJOK", "Bahasa Inggris", "Bahasa Jawa" ],
+            nilai: { tugas: 2, ulangan: 2, pctTugas: 30, pctUlang: 30, pctSTS: 20, pctSAS: 20, data: {} },
+            jadwalRows: 8,
+            jadwalData: {}, 
+            piketRows: 8,
+            piketData: {},
+            absensi: {}, 
+            hariLibur: {}, 
+            pelanggaran: [],
+            inventaris: [],
+            jurnal: [],
+            listTP: [
+                { mapel: "Matematika", tp: "Peserta didik memahami konsep perkalian." },
+                { mapel: "Bahasa Indonesia", tp: "Peserta didik mampu mengidentifikasi gagasan pokok." }
+            ],
+            biodata: {
+                nama: "Sultoni, S.Pd.", nip: "199010102020121001", ttl: "Gresik, 10 Oktober 1990", kelas: "Kelas 6", 
+                tahun: "2026/2027", kontak: "081234567890", email: "sultoni@guru.sdn175.sch.id", alamat: "Jl. Pendidikan",
+                foto: "https://api.dicebear.com/7.x/avataaars/svg?seed=Sultoni&backgroundColor=0a0a0f"
+            },
+            logo: "https://cdn-icons-png.flaticon.com/512/8062/8062272.png",
+            kopSurat: "" 
+        };
+
+        // Memuat state awal aplikasi dari LocalStorage
+        let appState = JSON.parse(localStorage.getItem('appState_v9')) || DEFAULT_STATE;
+
+        // Menyimpan perubahan state ke LocalStorage dan Google Sheets secara asinkronus
+        function saveState() {
+            try {
+                localStorage.setItem('appState_v9', JSON.stringify(appState));
+                // Sinkronisasi logo & kop sekolah ke backend Google Sheets (jika di environment GAS)
+                if (typeof google !== 'undefined' && google.script && google.script.run) {
+                    google.script.run.saveSettingToSheet("LogoSekolah", appState.logo);
+                    google.script.run.saveSettingToSheet("KopSurat", appState.kopSurat);
+                }
+            } catch (e) {
+                console.error("Storage Full Error", e);
+                notifikasi("Peringatan: Memori penuh. Coba unggah gambar yang lebih kecil.", "error");
+            }
+        }
+
+        // Sinkronisasi data visual ke elemen-elemen global yang selalu aktif di DOM
+        function applyGlobalVisuals() {
+            const loginLogo = document.getElementById('mainLoginLogo');
+            if (loginLogo) loginLogo.src = appState.logo;
+
+            const previewLogo = document.getElementById('previewLogoSekolah');
+            if(previewLogo) previewLogo.src = appState.logo;
+
+            const headerPic = document.getElementById('headerProfilePic');
+            if (headerPic) headerPic.src = appState.biodata.foto;
+
+            const headerNama = document.getElementById('headerNamaGuru');
+            if (headerNama) headerNama.innerText = appState.biodata.nama;
+
+            const loginNama = document.getElementById('loginNamaGuru');
+            if (loginNama) loginNama.innerText = appState.biodata.nama;
+
+            const sideTahun = document.getElementById('sideTahunPelajaran');
+            if (sideTahun) sideTahun.innerText = "TP " + appState.biodata.tahun;
+        }
+
+        // --- 2. UI INITIALIZATION & NAVIGATION ---
+        const menus = [
+            { id: 'dashboard', icon: 'ph-squares-four', title: 'Dashboard', color: '#00f3ff', tpl: 'tpl-dashboard', init: ()=> { document.getElementById('dash_jmlSiswa').innerText = appState.siswa.length; document.getElementById('dash_jmlPelanggaran').innerText = appState.pelanggaran.length; document.getElementById('dash_jmlJurnal').innerText = appState.jurnal.length; } },
+            { id: 'biodata', icon: 'ph-identification-card', title: 'Biodata Guru', color: '#00ff66', tpl: 'tpl-biodata', init: initBiodataView },
+            { id: 'siswa', icon: 'ph-users', title: 'Data Siswa', color: '#00ff66', tpl: 'tpl-siswa', init: initSiswa },
+            { id: 'absensi', icon: 'ph-calendar-check', title: 'Absensi Siswa', color: '#ffd700', tpl: 'tpl-absensi', init: () => { document.getElementById('selectBulanAbsen').value = getDefaultMonth(); initAbsensi(); } },
+            { id: 'nilai', icon: 'ph-exam', title: 'Daftar Nilai', color: '#ff3366', tpl: 'tpl-nilai', init: initNilai },
+            { id: 'jadwal', icon: 'ph-clock-user', title: 'Jadwal Pelajaran', color: '#b026ff', tpl: 'tpl-jadwal', init: initJadwal },
+            { id: 'piket', icon: 'ph-broom', title: 'Daftar Piket', color: '#ff9900', tpl: 'tpl-piket', init: initPiket },
+            { id: 'pelanggaran', icon: 'ph-warning-octagon', title: 'Data Pelanggaran', color: '#ff3232', tpl: 'tpl-pelanggaran', init: renderPelanggaran },
+            { id: 'inventaris', icon: 'ph-archive-box', title: 'Daftar Inventaris', color: '#4d4dff', tpl: 'tpl-inventaris', init: renderInventaris },
+            { id: 'jurnal', icon: 'ph-book-bookmark', title: 'Jurnal Mengajar', color: '#00f3ff', tpl: 'tpl-jurnal', init: initJurnal },
+            { id: 'pengaturan', icon: 'ph-gear-six', title: 'Pengaturan Sistem', color: '#888888', tpl: 'tpl-pengaturan', init: ()=> { 
+                document.getElementById('previewLogoSekolah').src = appState.logo; 
+                if(appState.kopSurat && appState.kopSurat !== "") {
+                    document.getElementById('previewKopSurat').src = appState.kopSurat;
+                }
+            }}
+        ];
+
+        let activeMenu = '';
+        document.addEventListener('DOMContentLoaded', () => {
+            applyGlobalVisuals();
+            buildSidebar();
+            
+            // Coba sinkronisasi logo dari cloud jika ada di Apps Script
+            if (typeof google !== 'undefined' && google.script && google.script.run) {
+                google.script.run.withSuccessHandler((logoCloud) => {
+                    if (logoCloud && logoCloud !== "") {
+                        appState.logo = logoCloud;
+                        applyGlobalVisuals();
+                        saveState();
+                    }
+                }).getSettingFromSheet("LogoSekolah");
+                
+                google.script.run.withSuccessHandler((kopCloud) => {
+                    if (kopCloud && kopCloud !== "") {
+                        appState.kopSurat = kopCloud;
+                        saveState();
+                    }
+                }).getSettingFromSheet("KopSurat");
+            }
+        });
+
+        function getDefaultMonth() {
+            let d = new Date();
+            return `${d.getFullYear()}-${(d.getMonth()+1).toString().padStart(2,'0')}`;
+        }
+
+        function login() {
+            document.getElementById('loginScreen').classList.add('opacity-0');
+            setTimeout(() => {
+                document.getElementById('loginScreen').classList.add('hidden');
+                document.getElementById('mainApp').classList.remove('hidden');
+                loadMenu('dashboard');
+                notifikasi("Sistem Berhasil Dimuat!", "success");
+            }, 700);
+        }
+        function logout() { location.reload(); }
+
+        function buildSidebar() {
+            const sidebar = document.getElementById('sidebarMenu');
+            sidebar.innerHTML = '';
+            menus.forEach(menu => {
+                const btn = document.createElement('button');
+                btn.className = `menu-item w-full flex items-center gap-3 px-5 py-3 text-sm text-gray-400 hover:text-white transition-all overflow-hidden`;
+                btn.id = `menu-${menu.id}`;
+                btn.onclick = () => { loadMenu(menu.id); if(window.innerWidth < 768) toggleSidebar(); };
+                btn.innerHTML = `<i class="ph ${menu.icon} text-xl shrink-0"></i> <span class="font-medium tracking-wide whitespace-nowrap">${menu.title}</span>`;
+                sidebar.appendChild(btn);
+            });
+        }
+        function toggleSidebar() {
+            const sb = document.getElementById('sidebar');
+            const overlay = document.getElementById('sidebarOverlay');
+            if (sb.classList.contains('sidebar-collapsed')) { sb.classList.remove('sidebar-collapsed'); sb.classList.add('sidebar-expanded'); overlay.classList.remove('hidden'); }
+            else { sb.classList.remove('sidebar-expanded'); sb.classList.add('sidebar-collapsed'); overlay.classList.add('hidden'); }
+        }
+
+        function loadMenu(id) {
+            if(activeMenu === id) return;
+            document.querySelectorAll('.menu-item').forEach(el => el.classList.remove('active'));
+            document.getElementById(`menu-${id}`).classList.add('active');
+            const menuData = menus.find(m => m.id === id);
+            document.documentElement.style.setProperty('--theme-color', menuData.color);
+            document.getElementById('headerTitle').innerText = menuData.title;
+            document.getElementById('headerIcon').innerHTML = `<i class="ph ${menuData.icon} text-2xl" style="color: ${menuData.color};"></i>`;
+
+            const container = document.getElementById('contentContainer');
+            container.classList.remove('morph-enter-active'); container.style.opacity = '0';
+            setTimeout(() => {
+                container.innerHTML = document.getElementById(menuData.tpl) ? document.getElementById(menuData.tpl).innerHTML : '';
+                if (menuData.init) menuData.init();
+                container.classList.add('morph-enter'); void container.offsetWidth;
+                container.classList.add('morph-enter-active'); container.style.opacity = '1';
+            }, 300);
+            activeMenu = id;
+        }
+
+        // --- 3. TOAST & MODAL ---
+        function notifikasi(msg, type='info') {
+            const t = document.getElementById('toast');
+            document.getElementById('toastMsg').innerText = msg;
+            t.className = 'fixed top-5 left-1/2 transform -translate-x-1/2 z-[100] glass-panel px-6 py-3 border-b-2 flex items-center gap-3 transition-all duration-300 opacity-0 -translate-y-4';
+            if(type === 'success') { t.style.borderBottomColor = '#00ff66'; document.getElementById('toastIcon').className = 'ph ph-check-circle text-cyber-green'; }
+            else if(type === 'error') { t.style.borderBottomColor = '#ff3232'; document.getElementById('toastIcon').className = 'ph ph-warning-circle text-red-500'; }
+            else { t.style.borderBottomColor = '#00f3ff'; document.getElementById('toastIcon').className = 'ph ph-info text-cyber-blue'; }
+            t.classList.remove('hidden');
+            setTimeout(() => { t.classList.remove('opacity-0', '-translate-y-4'); }, 10);
+            setTimeout(() => { t.classList.add('opacity-0', '-translate-y-4'); setTimeout(() => t.classList.add('hidden'), 300); }, 3000);
+        }
+
+        function tampilkanModal(title, bodyHTML, onConfirm, widthClass = 'max-w-lg') {
+            document.getElementById('modalTitle').innerText = title;
+            document.getElementById('modalBody').innerHTML = bodyHTML;
+            const content = document.getElementById('modalContent');
+            content.className = `glass-panel p-6 w-full transform transition-all duration-300 scale-95 opacity-0 ${widthClass}`;
+            document.getElementById('modalConfirmBtn').onclick = () => { onConfirm(); closeModal(); };
+            document.getElementById('customModal').classList.remove('hidden');
+            setTimeout(() => { content.classList.remove('scale-95', 'opacity-0'); }, 10);
+        }
+        function closeModal() {
+            const content = document.getElementById('modalContent');
+            content.classList.add('scale-95', 'opacity-0');
+            setTimeout(() => { document.getElementById('customModal').classList.add('hidden'); }, 300);
+        }
+
+        // ================= GENERIC EXPORT EXCEL =================
+        function exportTableWithInputsToExcel(tableId, filename) {
+            notifikasi("Memproses data ke format MS Excel...", "success");
+            let table = document.getElementById(tableId);
+            let aoa = [];
+            for(let i = 0; i < table.rows.length; i++) {
+                let row = table.rows[i];
+                let rowData = [];
+                for(let j = 0; j < row.cells.length; j++) {
+                    if(row.cells[j].classList.contains('hide-print')) continue;
+                    let input = row.cells[j].querySelector('input');
+                    let select = row.cells[j].querySelector('select');
+                    if (input && input.type !== 'radio') {
+                        rowData.push(input.value);
+                    } else if (select) {
+                        rowData.push(select.value);
+                    } else {
+                        rowData.push(row.cells[j].innerText.trim());
+                    }
+                }
+                aoa.push(rowData);
+            }
+            let ws = XLSX.utils.aoa_to_sheet(aoa);
+            let wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Data");
+            XLSX.writeFile(wb, `${filename}.xlsx`);
+        }
+
+        // ================= 4. IMAGE RESIZER HELPERS =================
+        // Kompresor Pintar untuk menjaga memori browser tidak penuh (Mencegah error 'QuotaExceeded')
+        // Disetel ke format PNG agar Transparansi Logo tetap terjaga saat diunggah.
+        function compressImageToCanvas(file, maxWidth, maxHeight, callback) {
+            const reader = new FileReader();
+            reader.onload = function(e) { 
+                const img = new Image();
+                img.onload = function() {
+                    const canvas = document.createElement('canvas');
+                    let width = img.width;
+                    let height = img.height;
+
+                    if (width > height) {
+                        if (width > maxWidth) { height *= maxWidth / width; width = maxWidth; }
+                    } else {
+                        if (height > maxHeight) { width *= maxHeight / height; height = maxHeight; }
+                    }
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctx = canvas.getContext('2d');
+                    
+                    // Langsung digambar ke Canvas tanpa memberi background putih, 
+                    // dengan begini format PNG yang transparan tetap utuh.
+                    ctx.drawImage(img, 0, 0, width, height);
+                    
+                    callback(canvas.toDataURL('image/png'));
+                };
+                img.src = e.target.result;
+            }
+            reader.readAsDataURL(file);
+        }
+
+        // --- BIODATA GURU ---
+        function initBiodataView() {
+            document.getElementById('formFotoGuru').src = appState.biodata.foto;
+            document.getElementById('bioNama').value = appState.biodata.nama;
+            document.getElementById('bioNIP').value = appState.biodata.nip;
+            document.getElementById('bioTTL').value = appState.biodata.ttl;
+            document.getElementById('bioKelas').value = appState.biodata.kelas;
+            document.getElementById('bioTahun').value = appState.biodata.tahun;
+            document.getElementById('bioKontak').value = appState.biodata.kontak;
+            document.getElementById('bioEmail').value = appState.biodata.email;
+            document.getElementById('bioAlamat').value = appState.biodata.alamat;
+        }
+
+        window.handleFotoUpload = function(input) {
+            if (input.files && input.files[0]) {
+                notifikasi("Sedang mengompres foto...", "info");
+                compressImageToCanvas(input.files[0], 250, 250, (compressedDataUrl) => {
+                    appState.biodata.foto = compressedDataUrl;
+                    document.getElementById('formFotoGuru').src = appState.biodata.foto;
+                    saveState();
+                    applyGlobalVisuals();
+                    notifikasi("Foto Guru Berhasil Disimpan!", "success");
+                });
+            }
+        };
+
+        function simpanBiodata(e) {
+            e.preventDefault();
+            appState.biodata.nama = document.getElementById('bioNama').value;
+            appState.biodata.nip = document.getElementById('bioNIP').value;
+            appState.biodata.ttl = document.getElementById('bioTTL').value;
+            appState.biodata.kelas = document.getElementById('bioKelas').value;
+            appState.biodata.tahun = document.getElementById('bioTahun').value;
+            appState.biodata.kontak = document.getElementById('bioKontak').value;
+            appState.biodata.email = document.getElementById('bioEmail').value;
+            appState.biodata.alamat = document.getElementById('bioAlamat').value;
+            
+            saveState();
+            applyGlobalVisuals();
+            notifikasi("Profil & Biodata sukses tersimpan permanen!", "success");
+        }
+
+        // --- PENGATURAN SISTEM (LOGO & KOP SURAT) ---
+        // Fungsi global menangani unggahan logo sekolah
+        window.handleLogoUpload = function(input) {
+            if (input.files && input.files[0]) {
+                notifikasi("Sedang memproses logo transparan...", "info");
+                // Max size 300px agar ringan dan cepat dimuat namun tajam
+                compressImageToCanvas(input.files[0], 300, 300, (compressedDataUrl) => {
+                    appState.logo = compressedDataUrl;
+                    
+                    const preview = document.getElementById('previewLogoSekolah');
+                    if(preview) preview.src = appState.logo; 
+                    
+                    applyGlobalVisuals(); // Ganti logo login & header secara langsung
+                    saveState(); // Simpan asinkronus ke LocalStorage & Sheet
+                    notifikasi("Logo sistem berhasil diunggah & tersimpan!", "success");
+                });
+            }
+        };
+
+        // Fungsi global untuk menangani unggahan kop surat
+        window.handleKopUpload = function(input) {
+            if (input.files && input.files[0]) {
+                notifikasi("Memproses Kop Surat...", "info");
+                // Ukuran untuk Kop Surat lebih memanjang (Max width 1000px)
+                compressImageToCanvas(input.files[0], 1000, 300, (compressedDataUrl) => {
+                    appState.kopSurat = compressedDataUrl;
+                    
+                    const preview = document.getElementById('previewKopSurat');
+                    if(preview) preview.src = appState.kopSurat; 
+                    
+                    saveState();
+                    notifikasi("Kop Surat berhasil disimpan!", "success");
+                });
+            }
+        };
+
+        // --- 5. DATA SISWA ---
+        function initSiswa() { renderSiswaTbody(); }
+        function renderSiswaTbody() {
+            document.getElementById('siswaTbody').innerHTML = appState.siswa.map((s, i) => `
+                <tr class="border-b border-gray-800/50 hover:bg-white/5 transition-colors">
+                    <td class="p-3 text-gray-400 text-center">${i+1}</td>
+                    <td class="p-3 font-medium text-white">${s.nama}</td>
+                    <td class="p-3 text-gray-400">${s.nis}</td>
+                    <td class="p-3 text-gray-400">${s.nisn}</td>
+                    <td class="p-3 text-center"><span class="px-2 py-1 ${s.jk==='L'?'bg-blue-500/20 text-blue-400':'bg-pink-500/20 text-pink-400'} rounded text-xs">${s.jk}</span></td>
+                    <td class="p-3 text-gray-400">${s.tmpt}, ${s.tgl}</td>
+                    <td class="p-3 text-gray-400">${s.ayah}</td>
+                    <td class="p-3 text-gray-400">${s.ibu}</td>
+                    <td class="p-3 flex justify-center gap-2 hide-print">
+                        <button onclick="editSiswa(${i})" class="text-gray-400 hover:text-cyber-blue"><i class="ph ph-pencil-simple text-lg"></i></button>
+                        <button onclick="hapusSiswa(${i})" class="text-gray-400 hover:text-red-400"><i class="ph ph-trash text-lg"></i></button>
+                    </td>
+                </tr>`).join('');
+        }
+        function sortSiswa() { appState.siswa.sort((a,b)=>a.nama.localeCompare(b.nama)); renderSiswaTbody(); saveState(); notifikasi("Diurutkan A-Z", "success"); }
+        
+        function actionSiswa(act) {
+            if (act === 'tambah') {
+                const formHtml = `<div class="grid grid-cols-2 gap-3 text-sm">
+                        <input id="n_nama" placeholder="Nama Lengkap" class="bg-gray-900 border border-gray-600 p-2 text-white outline-none rounded col-span-2">
+                        <input id="n_nis" placeholder="NIS" class="bg-gray-900 border border-gray-600 p-2 text-white outline-none rounded">
+                        <input id="n_nisn" placeholder="NISN" class="bg-gray-900 border border-gray-600 p-2 text-white outline-none rounded">
+                        <select id="n_jk" class="bg-gray-900 border border-gray-600 p-2 text-white outline-none rounded"><option value="L">Laki-Laki (L)</option><option value="P">Perempuan (P)</option></select>
+                        <input id="n_tmpt" placeholder="Tempat Lahir" class="bg-gray-900 border border-gray-600 p-2 text-white outline-none rounded">
+                        <input type="date" id="n_tgl" class="bg-gray-900 border border-gray-600 p-2 text-white outline-none rounded col-span-2">
+                        <input id="n_ayah" placeholder="Nama Ayah" class="bg-gray-900 border border-gray-600 p-2 text-white outline-none rounded">
+                        <input id="n_ibu" placeholder="Nama Ibu" class="bg-gray-900 border border-gray-600 p-2 text-white outline-none rounded">
+                    </div>`;
+                tampilkanModal("Tambah Data Siswa", formHtml, () => {
+                    appState.siswa.push({
+                        nama: document.getElementById('n_nama').value, nis: document.getElementById('n_nis').value,
+                        nisn: document.getElementById('n_nisn').value, jk: document.getElementById('n_jk').value,
+                        tmpt: document.getElementById('n_tmpt').value, tgl: document.getElementById('n_tgl').value,
+                        ayah: document.getElementById('n_ayah').value, ibu: document.getElementById('n_ibu').value
+                    });
+                    saveState(); renderSiswaTbody(); notifikasi("Data disimpan!", "success");
+                }, 'max-w-2xl');
+            } else if (act === 'ekspor') {
+                let wb = XLSX.utils.book_new();
+                let ws = XLSX.utils.json_to_sheet(appState.siswa.map((s, i) => ({
+                    "No": i+1, "Nama Siswa": s.nama, "NIS": s.nis, "NISN": s.nisn, 
+                    "Jenis Kelamin": s.jk, "Tempat Lahir": s.tmpt, "Tanggal Lahir": s.tgl, "Nama Ayah": s.ayah, "Nama Ibu": s.ibu
+                })));
+                XLSX.utils.book_append_sheet(wb, ws, "Siswa");
+                XLSX.writeFile(wb, "Data_Siswa.xlsx");
+                notifikasi("File MS Excel berhasil diunduh!", "success");
+            }
+        }
+        function editSiswa(idx) {
+            let s = appState.siswa[idx];
+            const formHtml = `<div class="grid grid-cols-2 gap-3 text-sm">
+                    <input id="e_nama" value="${s.nama}" class="bg-gray-900 border border-gray-600 p-2 text-white outline-none rounded col-span-2">
+                    <input id="e_nis" value="${s.nis}" class="bg-gray-900 border border-gray-600 p-2 text-white outline-none rounded">
+                    <input id="e_nisn" value="${s.nisn}" class="bg-gray-900 border border-gray-600 p-2 text-white outline-none rounded">
+                    <select id="e_jk" class="bg-gray-900 border border-gray-600 p-2 text-white outline-none rounded"><option value="L" ${s.jk=='L'?'selected':''}>Laki-Laki (L)</option><option value="P" ${s.jk=='P'?'selected':''}>Perempuan (P)</option></select>
+                    <input id="e_tmpt" value="${s.tmpt}" class="bg-gray-900 border border-gray-600 p-2 text-white outline-none rounded">
+                    <input type="date" id="e_tgl" value="${s.tgl}" class="bg-gray-900 border border-gray-600 p-2 text-white outline-none rounded col-span-2">
+                    <input id="e_ayah" value="${s.ayah}" class="bg-gray-900 border border-gray-600 p-2 text-white outline-none rounded">
+                    <input id="e_ibu" value="${s.ibu}" class="bg-gray-900 border border-gray-600 p-2 text-white outline-none rounded">
+                </div>`;
+            tampilkanModal("Edit Siswa", formHtml, () => {
+                appState.siswa[idx] = {
+                    nama: document.getElementById('e_nama').value, nis: document.getElementById('e_nis').value,
+                    nisn: document.getElementById('e_nisn').value, jk: document.getElementById('e_jk').value,
+                    tmpt: document.getElementById('e_tmpt').value, tgl: document.getElementById('e_tgl').value,
+                    ayah: document.getElementById('e_ayah').value, ibu: document.getElementById('e_ibu').value
+                };
+                saveState(); renderSiswaTbody(); notifikasi("Data diperbarui", "success");
+            }, 'max-w-2xl');
+        }
+        function hapusSiswa(idx) { tampilkanModal("Hapus Siswa", `Yakin hapus <b>${appState.siswa[idx].nama}</b>?`, () => { appState.siswa.splice(idx, 1); saveState(); renderSiswaTbody(); notifikasi("Dihapus", "success"); }); }
+        
+        window.imporSiswaExcel = function(event) {
+            let file = event.target.files[0];
+            if(!file) return;
+            let reader = new FileReader();
+            reader.onload = function(e) {
+                let data = new Uint8Array(e.target.result);
+                let workbook = XLSX.read(data, {type: 'array'});
+                let jsonStr = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+                jsonStr.forEach(row => {
+                    appState.siswa.push({ 
+                        nama: row['Nama Siswa'] || row.Nama || row.nama || "-", 
+                        nis: row.NIS || row.nis || "-", nisn: row.NISN || row.nisn || "-", 
+                        jk: row['Jenis Kelamin'] || row.JK || row.jk || "L", 
+                        tmpt: row['Tempat Lahir'] || row.Tempat || row.tmpt || "-", 
+                        tgl: row['Tanggal Lahir'] || row.Tgl || row.tgl || "", 
+                        ayah: row['Nama Ayah'] || row.Ayah || row.ayah || "-", ibu: row['Nama Ibu'] || row.Ibu || row.ibu || "-" 
+                    });
+                });
+                saveState(); renderSiswaTbody(); document.getElementById('importSiswaFile').value = '';
+                notifikasi("Data Excel berhasil diimpor & tersimpan otomatis!", "success");
+            };
+            reader.readAsArrayBuffer(file);
+        };
+
+        // --- 6. ABSENSI (Libur & Ekspor Rekap Lengkap) ---
+        function initAbsensi() {
+            const ym = document.getElementById('selectBulanAbsen').value;
+            const [year, month] = ym.split('-');
+            const daysInMonth = new Date(year, month, 0).getDate();
+            if(!appState.absensi[ym]) appState.absensi[ym] = {};
+
+            let thHTML = `<tr class="bg-gray-900 text-gray-400 border-b border-gray-800"><th rowspan="2" class="p-3 text-left w-48 sticky left-0 bg-gray-900 z-20 border-r border-gray-800">Nama Siswa</th>`;
+            thHTML += `<th colspan="${daysInMonth}" class="p-2 border-r border-gray-800 text-center">Tanggal (Klik Untuk Set Libur)</th>`;
+            thHTML += `<th colspan="6" class="p-2 text-center text-cyber-gold bg-gray-900">REKAPITULASI KEHADIRAN</th></tr>`;
+            
+            thHTML += `<tr class="bg-gray-900/80 text-gray-400 border-b border-gray-800">`;
+            for(let i=1; i<=daysInMonth; i++) {
+                let dateStr = `${year}-${month.padStart(2,'0')}-${i.toString().padStart(2,'0')}`;
+                let isSun = new Date(year, month-1, i).getDay() === 0;
+                let isLibur = appState.hariLibur[dateStr];
+                let bgClass = (isSun || isLibur) ? 'text-red-500 bg-red-900/20' : 'hover:text-white cursor-pointer';
+                thHTML += `<th onclick="toggleLibur('${dateStr}')" class="p-1 border-x border-gray-800 font-normal ${bgClass}">${i}</th>`;
+            }
+            thHTML += `<th class="p-1 border-l border-gray-800 text-cyber-green font-bold">H</th><th class="p-1 border-l border-gray-800 text-cyber-blue font-bold">S</th><th class="p-1 border-l border-gray-800 text-yellow-400 font-bold">I</th><th class="p-1 border-l border-gray-800 text-red-500 font-bold">A</th><th class="p-1 border-l border-gray-800 text-white font-bold">% HDR</th><th class="p-1 border-l border-gray-800 text-gray-500 font-bold">% ALPA</th></tr>`;
+            
+            document.getElementById('absenThead').innerHTML = thHTML;
+            drawAbsensiBody(ym, year, month, daysInMonth);
+        }
+
+        function drawAbsensiBody(ym, year, month, daysInMonth) {
+            document.getElementById('absenTbody').innerHTML = appState.siswa.map((s, sIdx) => {
+                if(!appState.absensi[ym][sIdx]) appState.absensi[ym][sIdx] = {};
+                let rowState = appState.absensi[ym][sIdx];
+                let counts = {H:0, S:0, I:0, A:0};
+                let row = `<tr class="border-b border-gray-800/50 hover:bg-white/5"><td class="p-2 text-left text-white sticky left-0 bg-[#12121c] border-r border-gray-800 whitespace-nowrap">${s.nama}</td>`;
+                
+                let activeDays = 0;
+                for(let i=1; i<=daysInMonth; i++) {
+                    let dateStr = `${year}-${month.padStart(2,'0')}-${i.toString().padStart(2,'0')}`;
+                    let isSun = new Date(year, month-1, i).getDay() === 0;
+                    if(isSun || appState.hariLibur[dateStr]) {
+                        row += `<td class="p-1 border-x border-gray-800 bg-red-900/10 text-center text-red-500 font-bold">-</td>`;
+                    } else {
+                        activeDays++;
+                        let val = rowState[i] || '-';
+                        if(counts[val] !== undefined) counts[val]++;
+                        let cClass = 'text-gray-500';
+                        if(val==='H') cClass = 'abs-H'; if(val==='S') cClass = 'abs-S';
+                        if(val==='I') cClass = 'abs-I'; if(val==='A') cClass = 'abs-A';
+                        row += `<td class="p-1 border-x border-gray-800"><div onclick="cycleAbsen('${ym}', ${sIdx}, ${i})" class="w-6 h-6 rounded flex items-center justify-center mx-auto text-xs cursor-pointer transition-colors ${cClass}">${val}</div></td>`;
+                    }
+                }
+                
+                let pctH = activeDays > 0 ? ((counts.H / activeDays) * 100).toFixed(1) : 0;
+                let pctA = activeDays > 0 ? (((counts.A + counts.S + counts.I) / activeDays) * 100).toFixed(1) : 0;
+                
+                row += `<td class="p-1 border-l border-gray-800 text-center font-bold text-cyber-green">${counts.H}</td>`;
+                row += `<td class="p-1 border-l border-gray-800 text-center font-bold text-cyber-blue">${counts.S}</td>`;
+                row += `<td class="p-1 border-l border-gray-800 text-center font-bold text-yellow-400">${counts.I}</td>`;
+                row += `<td class="p-1 border-l border-gray-800 text-center font-bold text-red-500">${counts.A}</td>`;
+                row += `<td class="p-1 border-l border-gray-800 text-center font-bold text-white">${pctH}%</td>`;
+                row += `<td class="p-1 border-l border-gray-800 text-center font-bold text-gray-500">${pctA}%</td></tr>`;
+                
+                return row;
+            }).join('');
+        }
+
+        function toggleLibur(dateStr) {
+            appState.hariLibur[dateStr] = !appState.hariLibur[dateStr];
+            saveState(); initAbsensi(); notifikasi(appState.hariLibur[dateStr] ? "Ditetapkan sebagai Hari Libur" : "Hari Libur dibatalkan", "success");
+        }
+
+        function cycleAbsen(ym, sIdx, day) {
+            const states = ['-', 'H', 'S', 'I', 'A'];
+            let cur = appState.absensi[ym][sIdx][day] || '-';
+            let next = states[(states.indexOf(cur) + 1) % states.length];
+            appState.absensi[ym][sIdx][day] = next;
+            saveState(); // AUTO-SAVE
+            
+            const [year, month] = ym.split('-');
+            drawAbsensiBody(ym, year, month, new Date(year, month, 0).getDate());
+        }
+
+        function unduhExcelAbsensiKhusus() {
+            notifikasi("Mengekspor Absensi... Mengatur ukuran sel agar kecil.", "success");
+            const ym = document.getElementById('selectBulanAbsen').value;
+            const [year, month] = ym.split('-');
+            const daysInMonth = new Date(year, month, 0).getDate();
+            
+            let aoa = [];
+            let header1 = ["Nama Siswa"];
+            let cols = [{wch: 25}]; // Column widths
+            
+            for(let i=1; i<=daysInMonth; i++) {
+                header1.push(i.toString());
+                cols.push({wch: 3.5}); // Small width for dates
+            }
+            header1.push("H", "S", "I", "A", "% Kehadiran", "% Ketidakhadiran");
+            cols.push({wch: 5},{wch: 5},{wch: 5},{wch: 5},{wch: 12},{wch: 15});
+            aoa.push(header1);
+
+            appState.siswa.forEach((s, sIdx) => {
+                let row = [s.nama];
+                let counts = {H:0, S:0, I:0, A:0};
+                let activeDays = 0;
+                let rowState = appState.absensi[ym]?.[sIdx] || {};
+
+                for(let i=1; i<=daysInMonth; i++) {
+                    let dateStr = `${year}-${month.padStart(2,'0')}-${i.toString().padStart(2,'0')}`;
+                    let isSun = new Date(year, month-1, i).getDay() === 0;
+                    if(isSun || appState.hariLibur[dateStr]) {
+                        row.push("-");
+                    } else {
+                        activeDays++;
+                        let val = rowState[i] || '-';
+                        if(counts[val] !== undefined) counts[val]++;
+                        row.push(val);
+                    }
+                }
+                let pctH = activeDays > 0 ? ((counts.H / activeDays) * 100).toFixed(1) : 0;
+                let pctA = activeDays > 0 ? (((counts.S + counts.I + counts.A) / activeDays) * 100).toFixed(1) : 0;
+                row.push(counts.H, counts.S, counts.I, counts.A, `${pctH}%`, `${pctA}%`);
+                aoa.push(row);
+            });
+
+            let ws = XLSX.utils.aoa_to_sheet(aoa);
+            ws['!cols'] = cols;
+            let wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Rekap Absensi");
+            XLSX.writeFile(wb, `Absensi_${ym}.xlsx`);
+        }
+
+        // --- 7. DAFTAR NILAI (Simpan Otomatis & Export Fix) ---
+        function initNilai() { 
+            let mapelSel = document.getElementById('selectMapelNilai');
+            let prevMapel = mapelSel.value || appState.mapel[0];
+            mapelSel.innerHTML = appState.mapel.map(m => `<option value="${m}" ${m==prevMapel?'selected':''}>${m}</option>`).join(''); 
+            renderNilaiTable(); 
+        }
+
+        function renderNilaiTable() {
+            let mapel = document.getElementById('selectMapelNilai').value;
+            if(!appState.nilai.data[mapel]) appState.nilai.data[mapel] = {};
+
+            let thHTML = `<tr class="bg-gray-900 text-gray-400 border-b border-gray-800"><th rowspan="2" class="p-2 text-left w-48 sticky left-0 bg-gray-900 z-20 border-r border-gray-800">Nama Siswa</th><th colspan="${appState.nilai.tugas}" class="p-2 border-r border-gray-800">Tugas (${appState.nilai.pctTugas}%)</th><th colspan="${appState.nilai.ulangan}" class="p-2 border-r border-gray-800">Ulangan (${appState.nilai.pctUlang}%)</th><th rowspan="2" class="p-2 border-r border-gray-800 text-yellow-400">STS (${appState.nilai.pctSTS}%)</th><th rowspan="2" class="p-2 border-r border-gray-800 text-red-400">SAS (${appState.nilai.pctSAS}%)</th><th rowspan="2" class="p-2 font-cyber text-cyber-blue">RAPORT</th></tr><tr class="bg-gray-900/80 text-gray-500">`;
+            for(let i=1; i<=appState.nilai.tugas; i++) thHTML += `<th class="p-1 border-r border-gray-800 font-normal">T${i}</th>`;
+            for(let i=1; i<=appState.nilai.ulangan; i++) thHTML += `<th class="p-1 border-r border-gray-800 font-normal">U${i}</th>`;
+            document.getElementById('nilaiThead').innerHTML = thHTML + `</tr>`;
+
+            document.getElementById('nilaiTbody').innerHTML = appState.siswa.map((s, idx) => {
+                if(!appState.nilai.data[mapel][idx]) appState.nilai.data[mapel][idx] = {t:[], u:[], sts:'', sas:''};
+                let d = appState.nilai.data[mapel][idx];
+                
+                let tr = `<tr id="rowNilai_${idx}" class="border-b border-gray-800/50 hover:bg-white/5"><td class="p-2 text-left text-white sticky left-0 bg-[#12121c] border-r border-gray-800 whitespace-nowrap">${s.nama}</td>`;
+                for(let i=0; i<appState.nilai.tugas; i++) tr += `<td class="p-1 border-r border-gray-800"><input type="number" class="val-tugas w-12 bg-transparent text-center outline-none focus:border-b focus:border-cyber-blue" value="${d.t[i]||''}" oninput="updateNilaiVal('${mapel}',${idx},'t',${i},this.value)"></td>`;
+                for(let i=0; i<appState.nilai.ulangan; i++) tr += `<td class="p-1 border-r border-gray-800"><input type="number" class="val-ulang w-12 bg-transparent text-center outline-none focus:border-b focus:border-cyber-purple" value="${d.u[i]||''}" oninput="updateNilaiVal('${mapel}',${idx},'u',${i},this.value)"></td>`;
+                tr += `<td class="p-1 border-r border-gray-800"><input type="number" class="val-sts w-12 bg-transparent text-center outline-none text-yellow-400" value="${d.sts}" oninput="updateNilaiVal('${mapel}',${idx},'sts',0,this.value)"></td><td class="p-1 border-r border-gray-800"><input type="number" class="val-sas w-12 bg-transparent text-center outline-none text-red-400" value="${d.sas}" oninput="updateNilaiVal('${mapel}',${idx},'sas',0,this.value)"></td><td class="p-1 font-bold text-cyber-blue font-cyber txt-raport">` + calculateRaportNum(d) + `</td></tr>`;
+                return tr;
+            }).join('');
+        }
+
+        function updateNilaiVal(mapel, sIdx, cat, i, val) {
+            if(cat==='sts' || cat==='sas') { appState.nilai.data[mapel][sIdx][cat] = val; }
+            else { appState.nilai.data[mapel][sIdx][cat][i] = val; }
+            saveState(); // AUTO SAVE
+            document.getElementById(`rowNilai_${sIdx}`).querySelector('.txt-raport').innerText = calculateRaportNum(appState.nilai.data[mapel][sIdx]);
+        }
+
+        function calculateRaportNum(d) {
+            let sT = d.t.reduce((a,b)=>a+(parseFloat(b)||0), 0); let cT = d.t.filter(x=>x!=='').length || 1;
+            let sU = d.u.reduce((a,b)=>a+(parseFloat(b)||0), 0); let cU = d.u.filter(x=>x!=='').length || 1;
+            let res = (sT/cT)*(appState.nilai.pctTugas/100) + (sU/cU)*(appState.nilai.pctUlang/100) + (parseFloat(d.sts)||0)*(appState.nilai.pctSTS/100) + (parseFloat(d.sas)||0)*(appState.nilai.pctSAS/100);
+            return res > 0 ? res.toFixed(1) : '-';
+        }
+
+        function modNilaiCol(type, val) { if(appState.nilai[type]+val>0) { appState.nilai[type]+=val; document.getElementById(type==='tugas'?'cTugas':'cUlangan').innerText=appState.nilai[type]; saveState(); renderNilaiTable(); } }
+        function settingPersentase() {
+             tampilkanModal("Persentase Raport", `<div class="grid grid-cols-2 gap-4">
+                    <div><label class="text-xs">Tugas %</label><input type="number" id="pTugas" value="${appState.nilai.pctTugas}" class="w-full bg-gray-900 p-2 rounded outline-none border border-gray-600 text-white mt-1"></div>
+                    <div><label class="text-xs">Ulangan %</label><input type="number" id="pUlang" value="${appState.nilai.pctUlang}" class="w-full bg-gray-900 p-2 rounded outline-none border border-gray-600 text-white mt-1"></div>
+                    <div><label class="text-xs">STS %</label><input type="number" id="pSTS" value="${appState.nilai.pctSTS}" class="w-full bg-gray-900 p-2 rounded outline-none border border-gray-600 text-white mt-1"></div>
+                    <div><label class="text-xs">SAS %</label><input type="number" id="pSAS" value="${appState.nilai.pctSAS}" class="w-full bg-gray-900 p-2 rounded outline-none border border-gray-600 text-white mt-1"></div>
+                </div>`, () => {
+                 let [t,u,s,a] = ['pTugas','pUlang','pSTS','pSAS'].map(id=>parseInt(document.getElementById(id).value)||0);
+                 if(t+u+s+a === 100) { appState.nilai.pctTugas=t; appState.nilai.pctUlang=u; appState.nilai.pctSTS=s; appState.nilai.pctSAS=a; saveState(); renderNilaiTable(); notifikasi("Update berhasil", "success"); } else notifikasi("Total harus 100%!", "error");
+             });
+        }
+
+        function unduhExcelNilai() {
+            let filename = "Daftar_Nilai_" + document.getElementById('selectMapelNilai').value;
+            // Extract from DOM to get current visible values correctly
+            exportTableWithInputsToExcel('tabelNilai', filename);
+        }
+
+        // --- 8. JADWAL PELAJARAN (Auto-Save Rows) ---
+        function initJadwal() {
+            let opts = `<option value="">-- Kosong --</option>` + appState.mapel.map(m => `<option class="bg-gray-900">${m}</option>`).join('');
+            let html = '';
+            for(let r=0; r<appState.jadwalRows; r++) {
+                html += `<tr class="border-b border-gray-800/50 hover:bg-white/5"><td class="p-2 border-r border-gray-800 text-gray-400 font-cyber font-bold">${r+1}</td>`;
+                for(let c=0; c<6; c++) {
+                    let key = `r${r}c${c}`;
+                    let val = appState.jadwalData[key] || '';
+                    html += `<td class="p-1 border-r border-gray-800"><select onchange="appState.jadwalData['${key}']=this.value; saveState()" class="w-full bg-transparent border border-gray-700/50 p-1 rounded text-white text-xs outline-none focus:border-cyber-purple">${opts.replace(`>${val}<`, ` selected>${val}<`)}</select></td>`;
+                }
+                html += `</tr>`;
+            }
+            document.getElementById('jadwalTbody').innerHTML = html;
+        }
+        function modJadwalRow(val) { if(appState.jadwalRows+val>0) { appState.jadwalRows+=val; saveState(); initJadwal(); } }
+        function kelolaMapel() {
+            tampilkanModal("Kelola Mapel", `
+                <div id="mapelListWrapper" class="mb-2 max-h-40 overflow-y-auto text-xs bg-gray-900 p-2 rounded border border-gray-700">
+                    ${appState.mapel.map((m,i)=> `<div class="flex justify-between py-1 border-b border-gray-800"><span>${m}</span><button onclick="hapusMapel(${i})" class="text-red-400">X</button></div>`).join('')}
+                </div>
+                <input type="text" id="inpNewMapel" placeholder="Tambah mapel baru..." class="w-full bg-gray-800 border border-gray-600 p-2 text-white outline-none rounded mt-2">
+            `, () => {
+                let v = document.getElementById('inpNewMapel').value;
+                if(v) { appState.mapel.push(v); saveState(); initJadwal(); if(activeMenu==='nilai')initNilai(); if(activeMenu==='jurnal')initJurnal(); notifikasi("Tersimpan", "success"); }
+            });
+        }
+        function hapusMapel(idx) { appState.mapel.splice(idx,1); saveState(); document.getElementById('modalConfirmBtn').click(); setTimeout(kelolaMapel, 300); }
+
+        // --- 9. DAFTAR PIKET (Auto-Save Rows) ---
+        function initPiket() { renderPiket(); }
+        function renderPiket() {
+            let opts = `<option value="">-- Kosong --</option>` + appState.siswa.map(s => `<option class="bg-gray-900" value="${s.nama}">${s.nama}</option>`).join('');
+            let html = '';
+            for(let r=0; r<appState.piketRows; r++) {
+                html += `<tr class="border-b border-gray-800/50 hover:bg-white/5"><td class="p-2 border-r border-gray-800 text-gray-400 font-cyber font-bold">${r+1}</td>`;
+                for(let c=0; c<6; c++) {
+                    let key = `r${r}c${c}`;
+                    let val = appState.piketData[key] || '';
+                    let dynamicOpts = opts.replace(`value="${val}"`, `value="${val}" selected`);
+                    html += `<td class="p-1 border-r border-gray-800"><select onchange="appState.piketData['${key}']=this.value; saveState()" class="w-full bg-transparent border border-gray-700/50 p-1 rounded text-white text-xs outline-none focus:border-cyber-gold">${dynamicOpts}</select></td>`;
+                }
+                html += `</tr>`;
+            }
+            document.getElementById('piketTbody').innerHTML = html;
+        }
+        function modPiketRow(val) { if(appState.piketRows+val>0) { appState.piketRows+=val; saveState(); renderPiket(); } }
+
+        // --- 10. JURNAL MENGAJAR (Import/Export TP Excel & Print Fixed Multi-Page) ---
+        function initJurnal() {
+            document.getElementById('jMapel').innerHTML = appState.mapel.map(m => `<option value="${m}">${m}</option>`).join('');
+            filterDatalistTP(); renderTabelJurnal();
+        }
+        function filterDatalistTP() {
+            let mapel = document.getElementById('jMapel').value;
+            let tps = appState.listTP.filter(t => t.mapel === mapel).map(t => `<option value="${t.tp}">`).join('');
+            document.getElementById('listTPOptions').innerHTML = tps;
+        }
+        function simpanJurnal(e) {
+            e.preventDefault();
+            appState.jurnal.push({
+                tgl: document.getElementById('jTgl').value,
+                jam1: document.getElementById('jJamMulai').value,
+                jam2: document.getElementById('jJamSelesai').value,
+                mapel: document.getElementById('jMapel').value,
+                tp: document.getElementById('jTP').value, 
+                materi: document.getElementById('jMateri').value
+            });
+            saveState(); e.target.reset(); filterDatalistTP(); renderTabelJurnal(); notifikasi("Jurnal Tersimpan", "success");
+        }
+        function renderTabelJurnal() {
+            let sorted = [...appState.jurnal].sort((a,b) => new Date(b.tgl) - new Date(a.tgl));
+            document.getElementById('jurnalTbody').innerHTML = sorted.map((j, i) => `
+                <tr class="border-b border-gray-800/50 hover:bg-white/5">
+                    <td class="p-2 text-center text-gray-400">${i+1}</td>
+                    <td class="p-2 text-white">${j.tgl}</td>
+                    <td class="p-2 text-center text-gray-300 font-cyber">${j.jam1}-${j.jam2}</td>
+                    <td class="p-2 font-medium text-cyber-blue">${j.mapel}</td>
+                    <td class="p-2 text-gray-300 whitespace-normal break-words max-w-[200px]">${j.tp}</td>
+                    <td class="p-2 text-gray-400 whitespace-normal break-words max-w-[200px]">${j.materi}</td>
+                    <td class="p-2 text-center hide-print"><button onclick="hapusArray('jurnal', ${appState.jurnal.indexOf(j)}, renderTabelJurnal)" class="text-red-400 hover:text-red-300"><i class="ph ph-trash text-lg"></i></button></td>
+                </tr>`).join('');
+        }
+        
+        function eksporTPExcel() {
+            let wb = XLSX.utils.book_new();
+            let ws = XLSX.utils.json_to_sheet(appState.listTP.map(t => ({"Mata Pelajaran": t.mapel, "Tujuan Pembelajaran": t.tp})));
+            XLSX.utils.book_append_sheet(wb, ws, "Daftar_TP");
+            XLSX.writeFile(wb, "Format_Tujuan_Pembelajaran.xlsx");
+            notifikasi("Format Excel TP berhasil diunduh!", "success");
+        }
+
+        window.imporTPExcel = function(event) {
+            let file = event.target.files[0];
+            if(!file) return;
+            let reader = new FileReader();
+            reader.onload = function(e) {
+                let data = new Uint8Array(e.target.result);
+                let workbook = XLSX.read(data, {type: 'array'});
+                let jsonStr = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+                jsonStr.forEach(row => {
+                    let m = row['Mata Pelajaran'] || row.mapel;
+                    let t = row['Tujuan Pembelajaran'] || row.tp;
+                    if(m && t) appState.listTP.push({ mapel: m, tp: t });
+                });
+                saveState(); filterDatalistTP(); document.getElementById('importTPFile').value = '';
+                notifikasi("Data Tujuan Pembelajaran (TP) ditambahkan!", "success");
+            };
+            reader.readAsArrayBuffer(file);
+        };
+
+        function kelolaTP() {
+            tampilkanModal("Kelola List TP", `
+                <div class="mb-2 max-h-64 overflow-y-auto text-xs bg-gray-900 p-2 rounded border border-gray-700">
+                    ${appState.listTP.map((t,i)=> `<div class="flex justify-between py-2 border-b border-gray-800"><div class="pr-2"><span class="text-cyber-blue font-bold">${t.mapel}</span><br><span class="text-gray-300">${t.tp}</span></div><button onclick="hapusTP(${i})" class="text-red-400 hover:text-red-300"><i class="ph ph-x"></i></button></div>`).join('')}
+                </div>
+            `, () => { /* Close modal */ }, 'max-w-xl');
+        }
+        function hapusTP(idx) { appState.listTP.splice(idx,1); saveState(); document.getElementById('modalConfirmBtn').click(); setTimeout(kelolaTP, 300); }
+        
+        // PENGATURAN CETAK PDF TERBARU YANG TELAH DISEMPURNAKAN
+        function cetakJurnal() {
+            let filter = document.getElementById('jurnalPrintFilter').value;
+            let filteredData = [...appState.jurnal].sort((a,b) => new Date(a.tgl) - new Date(b.tgl)); // Sort Ascending for Print
+            
+            let todayStr = new Date().toISOString().split('T')[0];
+            let monthStr = todayStr.substring(0, 7); // YYYY-MM
+            let weekAgo = new Date(); weekAgo.setDate(weekAgo.getDate() - 7);
+            
+            if(filter === 'today') {
+                filteredData = filteredData.filter(j => j.tgl === todayStr);
+            } else if (filter === 'month') {
+                filteredData = filteredData.filter(j => j.tgl.startsWith(monthStr));
+            } else if (filter === 'week') {
+                filteredData = filteredData.filter(j => new Date(j.tgl) >= weekAgo);
+            }
+
+            if(filteredData.length === 0) {
+                notifikasi("Tidak ada data jurnal pada rentang waktu ini.", "error"); return;
+            }
+
+            let prnt = document.getElementById('printSection');
+            let tblRows = filteredData.map((j, i) => `<tr><td style="text-align:center;">${i+1}</td><td style="white-space:nowrap;">${j.tgl}</td><td style="text-align:center;">${j.jam1}-${j.jam2}</td><td>${j.mapel}</td><td>${j.tp}</td><td>${j.materi}</td></tr>`).join('');
+            
+            // Header Cetak dinamis (berdasarkan apakah Kop Surat Gambar ada atau tidak)
+            let headerCetakHTML = '';
+            if(appState.kopSurat && appState.kopSurat !== "") {
+                headerCetakHTML = `<img src="${appState.kopSurat}" style="width: 100%; max-height: 180px; object-fit: contain; border-bottom: 3px solid black; padding-bottom: 10px; margin-bottom: 15px;">`;
+            } else {
+                headerCetakHTML = `
+                    <div class="kop-surat">
+                        <img src="${appState.logo}" style="width: 75px; position: absolute; left: 10px; top: 0;">
+                        <h2 style="margin:0; font-size: 18px; font-weight:normal;">PEMERINTAH KABUPATEN GRESIK</h2>
+                        <h1 style="margin:2px 0; font-size: 22px; font-weight:bold; letter-spacing: 1px;">UPT SD NEGERI 175 GRESIK</h1>
+                        <p style="margin:0; font-size: 12px; font-style:italic;">Alamat Sekolah: ${appState.biodata.alamat}</p>
+                    </div>`;
+            }
+
+            // Menyuntikkan template HTML ke dalam Area Print yang sudah diisolasi oleh CSS
+            prnt.innerHTML = `
+                ${headerCetakHTML}
+                <h3 style="text-align:center; margin-bottom:10px; font-size: 16px;">JURNAL MENGAJAR GURU<br>TAHUN PELAJARAN ${appState.biodata.tahun}</h3>
+                <table>
+                    <thead><tr><th style="width:5%;">No</th><th style="width:10%;">Tanggal</th><th style="width:8%;">Jam Ke</th><th style="width:17%;">Mata Pelajaran</th><th style="width:30%;">Tujuan Pembelajaran</th><th style="width:30%;">Uraian Materi</th></tr></thead>
+                    <tbody>${tblRows}</tbody>
+                </table>
+                <div style="margin-top: 30px; float: right; width: 250px; text-align: center; font-size: 14px; break-inside: avoid;">
+                    <p>Gresik, ${new Date().toLocaleDateString('id-ID')}</p>
+                    <p>Guru Kelas / Mata Pelajaran</p>
+                    <br><br><br>
+                    <p style="font-weight: bold; text-decoration: underline; margin-bottom: 0;">${appState.biodata.nama}</p>
+                    <p style="margin-top: 2px;">NIP. ${appState.biodata.nip}</p>
+                </div>
+            `;
+            
+            // Memicu dialog cetak bawaan browser
+            window.print();
+        }
+
+        // --- 11. PELANGGARAN & INVENTARIS ---
+        function renderPelanggaran() {
+            document.getElementById('pelanggaranTbody').innerHTML = appState.pelanggaran.map((p, i) => `
+                <tr class="border-b border-gray-800/50 hover:bg-white/5">
+                    <td class="p-2 text-center text-gray-400">${i+1}</td>
+                    <td class="p-2 text-white">${p.tgl}</td>
+                    <td class="p-2 font-medium text-white">${p.nama}</td>
+                    <td class="p-2 text-gray-300">${p.peristiwa}</td>
+                    <td class="p-2 text-red-400">${p.tindak}</td>
+                    <td class="p-2 text-center flex justify-center gap-2 hide-print">
+                        <button onclick="modalPelanggaran(${i})" class="text-gray-400 hover:text-cyber-blue"><i class="ph ph-pencil-simple text-lg"></i></button>
+                        <button onclick="hapusArray('pelanggaran', ${i}, renderPelanggaran)" class="text-gray-400 hover:text-red-400"><i class="ph ph-trash text-lg"></i></button>
+                    </td>
+                </tr>`).join('');
+        }
+        function modalPelanggaran(idx = null) {
+            let p = idx !== null ? appState.pelanggaran[idx] : {tgl:'', nama:'', peristiwa:'', tindak:''};
+            let opts = appState.siswa.map(s => `<option value="${s.nama}" ${s.nama==p.nama?'selected':''}>${s.nama}</option>`).join('');
+            tampilkanModal(idx !== null ? "Edit Pelanggaran" : "Catat Pelanggaran", `
+                <div class="space-y-3 text-sm">
+                    <input type="date" id="p_tgl" value="${p.tgl}" class="w-full bg-gray-900 border border-gray-600 p-2 text-white rounded">
+                    <select id="p_nama" class="w-full bg-gray-900 border border-gray-600 p-2 text-white rounded"><option value="">Pilih Siswa...</option>${opts}</select>
+                    <input id="p_peristiwa" value="${p.peristiwa}" placeholder="Peristiwa" class="w-full bg-gray-900 border border-gray-600 p-2 text-white rounded">
+                    <input id="p_tindak" value="${p.tindak}" placeholder="Tindak Lanjut" class="w-full bg-gray-900 border border-gray-600 p-2 text-white rounded">
+                </div>`, () => {
+                let data = { tgl: document.getElementById('p_tgl').value, nama: document.getElementById('p_nama').value, peristiwa: document.getElementById('p_peristiwa').value, tindak: document.getElementById('p_tindak').value };
+                if(idx !== null) appState.pelanggaran[idx] = data; else appState.pelanggaran.push(data);
+                saveState(); renderPelanggaran(); notifikasi("Tersimpan!", "success");
+            });
+        }
+        
+        function renderInventaris() {
+            document.getElementById('inventarisTbody').innerHTML = appState.inventaris.map((v, i) => `
+                <tr class="border-b border-gray-800/50 hover:bg-white/5">
+                    <td class="p-2 text-center text-gray-400 border-r border-gray-800">${i+1}</td>
+                    <td class="p-2 border-r border-gray-800 text-white">${v.nama}</td>
+                    <td class="p-2 border-r border-gray-800 text-center font-bold text-cyber-blue">${(parseInt(v.b)||0)+(parseInt(v.s)||0)+(parseInt(v.r)||0)}</td>
+                    <td class="p-2 border-r border-gray-800 text-center text-cyber-green">${v.b}</td>
+                    <td class="p-2 border-r border-gray-800 text-center text-yellow-400">${v.s}</td>
+                    <td class="p-2 border-r border-gray-800 text-center text-red-500">${v.r}</td>
+                    <td class="p-2 text-center flex justify-center gap-2 hide-print">
+                        <button onclick="modalInventaris(${i})" class="text-gray-400 hover:text-cyber-blue"><i class="ph ph-pencil-simple text-lg"></i></button>
+                        <button onclick="hapusArray('inventaris', ${i}, renderInventaris)" class="text-gray-400 hover:text-red-400"><i class="ph ph-trash text-lg"></i></button>
+                    </td>
+                </tr>`).join('');
+        }
+        function modalInventaris(idx = null) {
+            let v = idx !== null ? appState.inventaris[idx] : {nama:'', b:'', s:'', r:''};
+            tampilkanModal(idx !== null ? "Edit Barang" : "Tambah Barang", `
+                <div class="space-y-3 text-sm">
+                    <input id="i_nama" value="${v.nama}" placeholder="Nama Barang" class="w-full bg-gray-900 border border-gray-600 p-2 text-white rounded">
+                    <div class="grid grid-cols-3 gap-2">
+                        <div><label class="text-xs text-cyber-green">Baik</label><input type="number" id="i_b" value="${v.b}" placeholder="0" class="w-full bg-gray-900 border border-gray-600 p-2 text-white rounded"></div>
+                        <div><label class="text-xs text-yellow-400">Sedang</label><input type="number" id="i_s" value="${v.s}" placeholder="0" class="w-full bg-gray-900 border border-gray-600 p-2 text-white rounded"></div>
+                        <div><label class="text-xs text-red-500">Rusak</label><input type="number" id="i_r" value="${v.r}" placeholder="0" class="w-full bg-gray-900 border border-gray-600 p-2 text-white rounded"></div>
+                    </div>
+                </div>`, () => {
+                let data = { nama: document.getElementById('i_nama').value, b: document.getElementById('i_b').value, s: document.getElementById('i_s').value, r: document.getElementById('i_r').value };
+                if(idx !== null) appState.inventaris[idx] = data; else appState.inventaris.push(data);
+                saveState(); renderInventaris(); notifikasi("Tersimpan!", "success");
+            });
+        }
+        
+        function hapusArray(key, idx, renderFn) { 
+            tampilkanModal("Hapus Data", "Yakin hapus baris ini?", () => { appState[key].splice(idx,1); saveState(); renderFn(); notifikasi("Dihapus","success"); }); 
+        }
+
+    </script>
+</body>
+</html>
